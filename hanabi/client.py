@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
+import enum
 import random
 import threading
+import numpy as np
 from sys import argv, stdout
 from threading import Thread
 import GameData
 import socket
 from constants import *
 import os
-
+import json
 
 if len(argv) < 4:
     print("You need the player name to start the game.")
-    #exit(-1)
-    playerName = "Test" # For debug
+    # exit(-1)
+    playerName = "Test"  # For debug
     ip = HOST
     port = PORT
 else:
@@ -32,7 +34,11 @@ hintState = ("", "")
 
 wait_response = threading.Condition()
 
+CARDS_IN_A_HAND = 5
 my_hand = []
+training_matches = 5  # TODO steady state
+status_decision_map = dict()
+
 
 class Card(object):
     def __init__(self, value, color) -> None:
@@ -41,20 +47,92 @@ class Card(object):
         self.color = color
 
     def toClientString(self):
-        return ("Card " + str(self.value) + " - " + str(self.color))
+        return "Card " + str(self.value) + " - " + str(self.color)
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self.value == other.value and self.color == other.color
 
 
-def make_decision(data):
-    global command
-    choice = random.randrange(0, 2)
-    selected = random.randrange(0, 4)
-    if choice == 0:
-        command = "play " + str(selected)
-    elif choice == 1:
-        command = "discard " + str(selected)
-    else:
-        value = data.players[0].hand[selected].value
-        command = "hint value " + data.players[0].name + " " + str(value)
+class CardKnowledge(enum.Enum):
+    NONE = 0
+    VALUE_NOT_PLAYABLE = 1
+    VALUE_PLAYABLE = 2
+    COLOR_NOT_PLAYABLE = 4
+    COLOR_PLAYABLE = 8
+
+
+class ActionList(enum.Enum):
+    PLAY = 0
+    DISCARD = 1
+    HINT = 2
+
+
+class Action(object):
+    def __init__(self, cs) -> None:
+        super().__init__()
+        self.my_hand_dict = cs.cards_status['my_cards']
+        self.others_hands_dict = cs.cards_status['others_cards']
+        self.actions_value = np.ones(len(ActionList), dtype=int)
+        self.dict_entry_values = []
+        self.dict_entry_values[ActionList.PLAY.value] = np.ones(CARDS_IN_A_HAND, dtype=int)
+        self.dict_entry_values[ActionList.DISCARD.value] = np.ones(CARDS_IN_A_HAND, dtype=int)
+
+    def reward(self, action):
+        if self.actions_value[action] != 3:
+            self.actions_value[action] += 1
+
+    def penalize(self, action):
+        self.actions_value[action] -= 1
+        if np.sum(self.actions_value) == 0:
+            self.reset_actions()
+
+    def get_action(self):
+        all_eq = True
+        for i in range(len(ActionList) - 1):
+            if self.actions_value[i] != self.actions_value[i + 1]:
+                all_eq = False
+        if all_eq:
+            choice = random.randrange(len(ActionList))
+        else:
+            choice = self.actions_value.argmax()
+
+        if choice == ActionList.HINT.value:
+            a=1
+            # TODO manage hint
+        else:
+            for i in range(CARDS_IN_A_HAND - 1):
+                if self.dict_entry_values[choice][i] != self.actions_value[choice][i + 1]:
+                    all_eq = False
+            if all_eq:
+                extra_data = random.randrange(CARDS_IN_A_HAND)
+            else:
+                extra_data = self.dict_entry_values[choice].argmax()
+
+        return choice, extra_data
+
+    def reset_actions(self):
+        self.actions_value = np.ones(len(ActionList), dtype=int)
+
+
+class CardsStatus(object):
+    def __init__(self, my_cs, others_cs) -> None:
+        super().__init__()
+        self.cards_status = dict()
+        self.cards_status['my_cards'] = my_cs
+        self.cards_status['others_cards'] = others_cs
+
+    def to_standard_view(self):
+        return json.dumps(self.cards_status, sort_keys=True)
+
+    def __hash__(self):
+        return self.to_standard_view().__hash__()
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self.to_standard_view() == other.to_standard_view()
 
 
 def init_hand():
@@ -66,7 +144,65 @@ def init_hand():
     my_hand.append(Card('none', 'none'))
 
 
-def manageInput():
+def what_i_know(card, game_status):
+    global card_decision_map
+
+    card_knowledge = CardKnowledge.NONE.value
+    if card.color != 'none':
+        if len(game_status.tableCards[card.color]) != 0:
+            card_knowledge = card_knowledge | CardKnowledge.COLOR_PLAYABLE.value
+        else:
+            card_knowledge = card_knowledge | CardKnowledge.COLOR_NOT_PLAYABLE.value
+
+    if card.value != 'none':
+        value_playable = False
+        for color in game_status.tableCards:
+            color_cards = len(game_status.tableCards[color])
+            if game_status.tableCards[color][color_cards-1] == card.value - 1:
+                value_playable = True
+
+        if value_playable:
+            card_knowledge = card_knowledge | CardKnowledge.VALUE_PLAYABLE.value
+        else:
+            card_knowledge = card_knowledge | CardKnowledge.VALUE_NOT_PLAYABLE.value
+
+    return card_knowledge
+
+
+def compute_cards_status(cards_knowledge):
+    cards_status = dict()
+    for card_knowledge in cards_knowledge:
+        if cards_status.__contains__(card_knowledge):
+            cards_status[card_knowledge] += 1
+        else:
+            cards_status[card_knowledge] = 1
+
+    return cards_status
+
+
+def make_decision(game_status):
+    global command
+    global my_hand
+
+    my_cards_knowledge = []
+    others_cards_knowledge = []
+
+    for ci, card in enumerate(my_hand):
+        my_cards_knowledge[ci] = what_i_know(card, game_status)
+
+    for pi, player in enumerate(game_status.players):
+        for ci, card in enumerate(player.hand):
+            others_cards_knowledge[pi * CARDS_IN_A_HAND + ci] = what_i_know(card, game_status)
+
+    cards_status = CardsStatus(compute_cards_status(my_cards_knowledge), compute_cards_status(others_cards_knowledge))
+    if not status_decision_map.__contains__(cards_status):
+        status_decision_map[cards_status] = Action(cards_status)
+
+    selected_action, extra_data = status_decision_map[cards_status].get_action()
+    return cards_status, selected_action, extra_data
+
+
+def command_manager():
     global run
     global status
     global command
@@ -86,17 +222,17 @@ def manageInput():
             s.send(GameData.ClientGetGameStateRequest(playerName).serialize())
         elif command.split(" ")[0] == "discard" and status == statuses[1]:
             try:
-                cardStr = command.split(" ")
-                cardOrder = int(cardStr[1])
-                s.send(GameData.ClientPlayerDiscardCardRequest(playerName, cardOrder).serialize())
+                card_str = command.split(" ")
+                card_order = int(card_str[1])
+                s.send(GameData.ClientPlayerDiscardCardRequest(playerName, card_order).serialize())
             except:
                 print("Maybe you wanted to type 'discard <num>'?")
                 continue
         elif command.split(" ")[0] == "play" and status == statuses[1]:
             try:
-                cardStr = command.split(" ")
-                cardOrder = int(cardStr[1])
-                s.send(GameData.ClientPlayerPlayCardRequest(playerName, cardOrder).serialize())
+                card_str = command.split(" ")
+                card_order = int(card_str[1])
+                s.send(GameData.ClientPlayerPlayCardRequest(playerName, card_order).serialize())
             except:
                 print("Maybe you wanted to type 'play <num>'?")
                 continue
@@ -128,7 +264,7 @@ def manageInput():
             continue
 
         wait_response.wait()
-        #stdout.flush()
+
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     request = GameData.ClientPlayerAddData(playerName)
@@ -139,8 +275,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     if type(data) is GameData.ServerPlayerConnectionOk:
         print("Connection accepted by the server. Welcome " + playerName)
     print("[" + playerName + " - " + status + "]: ", end="")
-    Thread(target=manageInput).start()
+    Thread(target=command_manager).start()
     refresh_status = False
+    exiting = False
+
     while run:
         refresh_status = False
         dataOk = False
@@ -221,16 +359,26 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print(data.score)
             print(data.scoreMessage)
             stdout.flush()
-            #run = False
             print("Ready for a new game!")
+            init_hand()
+            if training_matches > 0:
+                training_matches -= 1
+            else:
+                print("Training end")
+                exiting = True
+
+            refresh_status = True
 
         if not dataOk:
-            print("Unknown or unimplemented data type: " +  str(type(data)))
+            print("Unknown or unimplemented data type: " + str(type(data)))
 
         print("[" + playerName + " - " + status + "]: ", end="")
 
         if refresh_status:
-            command = "show"
+            if exiting:
+                command = "exit"
+            else:
+                command = "show"
             wait_response.notify()
 
         wait_response.release()
