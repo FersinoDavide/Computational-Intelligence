@@ -4,6 +4,8 @@ from sys import argv
 import random
 import subprocess
 import socket
+import json
+from os.path import exists
 from threading import Thread
 from threading import Lock
 from time import sleep
@@ -17,8 +19,12 @@ if len(argv) == 2:
 elif len(argv) == 3:
     N_PLAYERS = int(argv[1])
     OUT_PATH = argv[2]
+elif len(argv) == 4:
+    N_PLAYERS = int(argv[1])
+    OUT_PATH = argv[2]
+    RESUME_FILE = argv[3]
 else:
-    print("Usage Optimizer.py NUM_PLAYERS [OUT_PATH]")
+    print("Usage Optimizer.py NUM_PLAYERS [OUT_PATH] [RESUME_FILE]")
     exit(-1)
 
 TOURNAMENT_WINNERS = 10
@@ -28,7 +34,7 @@ MUTATION_CHANCE_N_TURNS = 0.5
 MUTATION_DIRECTION_CHANCE = 0.5
 
 GAMES_PER_CLIENT = 100
-MAX_GAMES_IN_PARALLEL = 10
+MAX_GAMES_IN_PARALLEL = 20
 
 MIN_IMPROVEMENT = 0.1
 MAX_GENERATIONS_WO_INCREMENT = 5
@@ -276,7 +282,30 @@ mutationFactorChange = 0
 generationsCount = 0
 
 bestMark = 0
+
 bestClient = PolicyBasedClient()
+if exists(RESUME_FILE):
+    resumeFile = open(RESUME_FILE, "r")
+    params = resumeFile.readline().split("#")
+    playTh = json.loads(params[0])
+    thReducer = json.loads(params[1])
+    bonusKnownCard = float(params[2])
+    nTurns = int(params[3])
+    mutationFactorChange = int(params[4])
+
+    bestClient.PLAY_THRESHOLD = playTh
+    bestClient.TH_REDUCER = thReducer
+    bestClient.BONUS_KNOWN_CARD = bonusKnownCard
+    bestClient.N_TURNS = nTurns
+
+    resultReport.write(f"Resuming from {bestClient.toString()}\nMutation factor change: {mutationFactorChange}\n")
+    resultReport.flush()
+
+    resumeFile.close()
+
+for _ in range(mutationFactorChange):
+    MUTATION_FACTOR = MUTATION_FACTOR / 2
+    MUTATION_CHANCE_N_TURNS = MUTATION_CHANCE_N_TURNS / 2
 
 while mutationFactorChange < MAX_MUTATION_FACTOR_CHANGE:
     tournamentWinners = [bestClient for _ in range(TOURNAMENT_WINNERS)]
@@ -284,6 +313,7 @@ while mutationFactorChange < MAX_MUTATION_FACTOR_CHANGE:
     clientsInTournament = []
     while generationsWoIncrements < MAX_GENERATIONS_WO_INCREMENT:
         generationsCount += 1
+        clientsInTournament.clear()
         for i in range(TOURNAMENT_WINNERS):
             clientsInTournament += generateChildren(tournamentWinners[i])
 
@@ -308,11 +338,12 @@ while mutationFactorChange < MAX_MUTATION_FACTOR_CHANGE:
         if improvementValue > MIN_IMPROVEMENT:
             bestMark = generationBestMark
             bestClient = generationBestClient
-            resultReport.write(f"\nGeneration:{generationsCount},GenWoInc:{generationsWoIncrements},MutFactorChange:{mutationFactorChange}\n" + bestClient.paramsToString())
-            resultReport.flush()
             generationsWoIncrements = 0
         else:
             generationsWoIncrements += 1
+
+        resultReport.write(f"\nGeneration:{generationsCount},Mark:{bestMark},GenWoInc:{generationsWoIncrements},MutFactorChange:{mutationFactorChange}\n" + bestClient.paramsToString())
+        resultReport.flush()
 
     MUTATION_FACTOR = MUTATION_FACTOR / 2
     MUTATION_CHANCE_N_TURNS = MUTATION_CHANCE_N_TURNS / 2

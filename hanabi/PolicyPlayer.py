@@ -38,10 +38,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if dataOk:
             if exists(f"bestParams_{nPlayers}"):
                 f = open(f"bestParams_{nPlayers}", "r")
-                params = f.readline().split(",")
+                params = f.readline().split("#")
                 playTh = json.loads(params[0])
                 thReducer = json.loads(params[1])
-                bonusKnownCard = int(params[2])
+                bonusKnownCard = float(params[2])
                 nTurns = int(params[3])
 
                 client.PLAY_THRESHOLD = playTh

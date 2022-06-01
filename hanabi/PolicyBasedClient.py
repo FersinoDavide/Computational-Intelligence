@@ -49,4 +49,4 @@ class PolicyBasedClient(Client):
         return f"Client: {self.PLAY_THRESHOLD} {self.TH_REDUCER} {self.BONUS_KNOWN_CARD} {self.N_TURNS}"
 
     def paramsToString(self):
-        return f"{self.PLAY_THRESHOLD},{self.TH_REDUCER},{self.BONUS_KNOWN_CARD},{self.N_TURNS}"
+        return f"{self.PLAY_THRESHOLD}#{self.TH_REDUCER}#{self.BONUS_KNOWN_CARD}#{self.N_TURNS}"
