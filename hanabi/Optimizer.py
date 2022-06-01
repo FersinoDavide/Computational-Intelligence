@@ -198,7 +198,7 @@ def startNewGame(client, clientsMarks, clientIndex, gameLock, gamesSemaphore, lo
     p['busy'] = True
     gameLock.release()
 
-    server = subprocess.Popen(['python', 'server.py', HOST, str(p['port'])])
+    server = subprocess.Popen(['python', 'myServer.py', HOST, str(p['port'])])
     sleep(1)
 
     clientsInGame = []
