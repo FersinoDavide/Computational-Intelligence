@@ -48,8 +48,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 client.TH_REDUCER = thReducer
                 client.BONUS_KNOWN_CARD = bonusKnownCard
                 client.N_TURNS = nTurns
+
                 f.close()
 
+            print(f"Using {client.toString()}")
             Thread(target=client.start, args=[s]).start()
             print("Player is running, press any key to stop")
             command = input()
