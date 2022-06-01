@@ -11,11 +11,15 @@ from constants import *
 from PolicyBasedClient import PolicyBasedClient
 
 
-if len(argv) != 2:
-    print("Usage Optimizer.py [NUM_PLAYERS]")
-    exit(-1)
-else:
+if len(argv) == 2:
     N_PLAYERS = int(argv[1])
+    OUT_PATH = "./"
+elif len(argv) == 3:
+    N_PLAYERS = int(argv[1])
+    OUT_PATH = argv[2]
+else:
+    print("Usage Optimizer.py NUM_PLAYERS [OUT_PATH]")
+    exit(-1)
 
 TOURNAMENT_WINNERS = 10
 MUTATION_FACTOR = 0.2
@@ -254,8 +258,8 @@ def popBest(clientsInTournament, clientsMarks):
 
     return bestClient, bestMark
 
-f = open(f"report_{N_PLAYERS}.txt", "w")
-resultReport = open(f"bestParamsReport_{N_PLAYERS}.txt", "w")
+f = open(f"{OUT_PATH}report_{N_PLAYERS}.txt", "w")
+resultReport = open(f"{OUT_PATH}bestParamsReport_{N_PLAYERS}.txt", "w")
 
 startingPort = PORT
 serversPorts = [None for _ in range(MAX_GAMES_IN_PARALLEL)]
@@ -304,7 +308,7 @@ while mutationFactorChange < MAX_MUTATION_FACTOR_CHANGE:
         if improvementValue > MIN_IMPROVEMENT:
             bestMark = generationBestMark
             bestClient = generationBestClient
-            resultReport.write(f"\nGeneration {generationsCount}: " + bestClient.paramsToString())
+            resultReport.write(f"\nGeneration:{generationsCount},GenWoInc:{generationsWoIncrements},MutFactorChange:{mutationFactorChange}\n" + bestClient.paramsToString())
             resultReport.flush()
             generationsWoIncrements = 0
         else:
@@ -317,6 +321,6 @@ while mutationFactorChange < MAX_MUTATION_FACTOR_CHANGE:
 f.close()
 resultReport.close()
 
-resultFile = open(f"bestParams_{N_PLAYERS}.txt", "w")
+resultFile = open(f"{OUT_PATH}bestParams_{N_PLAYERS}.txt", "w")
 resultFile.write(bestClient.paramsToString())
 resultFile.close()
