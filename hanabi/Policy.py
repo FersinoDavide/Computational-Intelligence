@@ -1,19 +1,14 @@
 import random
 from copy import deepcopy
 
+from matplotlib.style import available
+
 
 N_CARDS = {1 : 15, 2 : 10, 3 : 10, 4 : 10, 5 : 5}
 COLORS = ["green", "red", "blue", "yellow", "white"]
 N_COLORS = 5
-
+MAX_NOTE_TOKENS = 8
 POSSIBLE_HINTS = {1 : "value", 2 : "value", 3 : "value", 4 : "value", 5 : "value", "red" : "color", "blue" : "color", "green" : "color", "white" : "color", "yellow" : "color"}
-
-PLAY_THRESHOLD = [0.5, 0.7, 0.9]
-TH_REDUCER = [0.5, 0.75, 1]
-DISCARD_THRESHOLD = 0.5
-BONUS_KNOWN_CARD = 0.1
-
-N_TURNS = 1
 
 def isKnown(card):
     return card.value is not None and card.color is not None
@@ -96,7 +91,7 @@ def canDiscard(usedNoteTokens):
     return not usedNoteTokens == 0
 
 def canHint(usedNoteTokens):
-    return not usedNoteTokens == 8
+    return not usedNoteTokens == MAX_NOTE_TOKENS
 
 def getPlayerAbsolutePosition(allPlayers, myName, posDiff):
     playerPos = None
@@ -202,7 +197,7 @@ def getHandValue(hand, client, hintPlayerName):
 
             cardValue = (playTh + discardTh) / 2
             if isKnown(card):
-                cardValue += BONUS_KNOWN_CARD
+                cardValue += client.BONUS_KNOWN_CARD
             cardValue = min(1, cardValue)
 
         handValue += cardValue
@@ -218,7 +213,9 @@ def generateUsefulHint(client):
 
         handValueBeforeHint = getHandValue(hintPlayerHandKnowledge, client, hintPlayerName)
 
-        handValueAfterHint, hintType, hintValue = getHintForHandMaxValue(hintPlayerHand, hintPlayerHandKnowledge, client, hintPlayerName, N_TURNS)
+        availableNoteTokens = MAX_NOTE_TOKENS - client.board['usedNoteTokens']
+        nTurns = min(client.N_TURNS, availableNoteTokens)
+        handValueAfterHint, hintType, hintValue = getHintForHandMaxValue(hintPlayerHand, hintPlayerHandKnowledge, client, hintPlayerName, nTurns)
 
         if handValueAfterHint > handValueBeforeHint and hintType is not None and hintValue is not None:
             #print(f"Hint {hintPlayerName}: {hintType} {hintValue}")
@@ -432,11 +429,11 @@ def playIfOverThreshold(client):
         t = getPlayThreshold(client, card)
         thresholdVett.append(t)
 
-    th = PLAY_THRESHOLD[usedStormTokens]
+    th = client.PLAY_THRESHOLD[usedStormTokens]
     if client.cardsDrawn == sum(N_CARDS.values()):
-        th = th * TH_REDUCER[usedStormTokens]
+        th = th * client.TH_REDUCER[usedStormTokens]
 
-    if max(thresholdVett) >= PLAY_THRESHOLD[usedStormTokens]:
+    if max(thresholdVett) >= client.PLAY_THRESHOLD[usedStormTokens]:
         cardIndex = thresholdVett.index(max(thresholdVett))
         #print(f"Play Over TH {PLAY_THRESHOLD[usedStormTokens]} " + client.myHand[cardIndex].toClientString())
         return client.buildPlayCommand(cardIndex)

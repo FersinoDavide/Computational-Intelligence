@@ -6,7 +6,7 @@ from game import Card
 STATUSES = ["Lobby", "Game", "GameHint"]
 
 class Client:
-    def __init__(self):
+    def __init__(self, maxGames=None):
         self.run = True
         self.status = STATUSES[0]
         self.run = True
@@ -23,6 +23,8 @@ class Client:
         self.cardsDrawn = 0
         
         self.gameCount = 0
+        self.maxGames = maxGames
+        self.gameScores = []
 
     def registerToGame(self, socket, ip, port, playerName):
         self.myIP = ip
@@ -40,7 +42,7 @@ class Client:
     def ready(self, socket):
         socket.send(GameData.ClientPlayerStartRequest(self.myName).serialize())
         dataOk, invalidAction = self.listen(socket)
-        return dataOk
+        return dataOk, len(self.allPlayers)
 
     def initHand(self, players):
         self.myHand = []
@@ -250,8 +252,10 @@ class Client:
 
             self.gameCount += 1
             print(f"Game {self.gameCount}, score: {data.score}")
-            
-            #self.run = False
+            self.gameScores.append(data.score)
+            if self.maxGames is not None and self.gameCount >= self.maxGames:
+                needRefresh = False
+                self.run = False
 
         if needRefresh:
             self.refreshGameInfo(socket)
