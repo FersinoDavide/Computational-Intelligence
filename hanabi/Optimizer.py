@@ -265,7 +265,7 @@ def popBest(clientsInTournament, clientsMarks):
     return bestClient, bestMark
 
 f = open(f"{OUT_PATH}report_{N_PLAYERS}.txt", "w")
-resultReport = open(f"{OUT_PATH}bestParamsReport_{N_PLAYERS}.txt", "w")
+resultReport = open(f"{OUT_PATH}bestParamsReport_{N_PLAYERS}.txt", "a")
 
 startingPort = PORT
 serversPorts = [None for _ in range(MAX_GAMES_IN_PARALLEL)]
@@ -326,6 +326,10 @@ while mutationFactorChange < MAX_MUTATION_FACTOR_CHANGE:
 
         for game in games:
             game.join()
+
+        for i in range(len(clientsMarks)):
+            if clientsMarks[i] is None:
+                clientsMarks[i] = 0
 
         tournamentWinners.clear()
         generationBestClient, generationBestMark = popBest(clientsInTournament, clientsMarks)
