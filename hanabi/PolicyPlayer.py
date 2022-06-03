@@ -36,8 +36,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 validCommand = True
 
         if dataOk:
-            if exists(f"bestParams_{nPlayers}"):
-                f = open(f"bestParams_{nPlayers}", "r")
+            if exists(f"models/bestParams_{nPlayers}.txt"):
+                f = open(f"models/bestParams_{nPlayers}.txt", "r")
                 params = f.readline().split("#")
                 playTh = json.loads(params[0])
                 thReducer = json.loads(params[1])

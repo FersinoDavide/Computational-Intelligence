@@ -298,7 +298,7 @@ if exists(RESUME_FILE):
     bestClient.BONUS_KNOWN_CARD = bonusKnownCard
     bestClient.N_TURNS = nTurns
 
-    resultReport.write(f"Resuming from {bestClient.toString()}\nMutation factor change: {mutationFactorChange}\n")
+    resultReport.write(f"\nResuming from {bestClient.toString()}\nMutation factor change: {mutationFactorChange}\n")
     resultReport.flush()
 
     resumeFile.close()
