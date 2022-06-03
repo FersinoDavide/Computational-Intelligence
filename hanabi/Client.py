@@ -42,7 +42,7 @@ class Client:
     def ready(self, socket):
         socket.send(GameData.ClientPlayerStartRequest(self.myName).serialize())
         dataOk, invalidAction = self.listen(socket)
-        return dataOk, len(self.allPlayers)
+        return dataOk, len(self.allPlayersName)
 
     def initHand(self, players):
         self.myHand = []
