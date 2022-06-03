@@ -28,10 +28,10 @@ Commands for server:
 
 ## Client
 
-To start the server:
+To start the my custom client:
 
 ```bash
-python client.py <IP> <port> <PlayerName>
+python PolicyPlayer.py <IP> <port> <PlayerName>
 ```
 
 Arguments:
@@ -44,8 +44,3 @@ Commands for client:
 
 + exit: exit from the game
 + ready: set your status to ready (lobby only)
-+ show: show cards
-+ hint \<type> \<destinatary>:
-  + type: 'color' or 'value'
-  + destinatary: name of the person you want to ask the hint to
-+ discard \<num>: discard the card *num* (\[0-4]) from your hand
